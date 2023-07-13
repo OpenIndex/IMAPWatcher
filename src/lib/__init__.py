@@ -14,6 +14,8 @@
 # limitations under the License.
 #
 
+import logging
+import sys
 from datetime import datetime
 from enum import Enum
 
@@ -30,6 +32,32 @@ class EncryptionCertificateCheck(Enum):
     NONE = 'none'
     OPTIONAL = 'optional'
     REQUIRED = 'required'
+
+
+__LOGGERS: dict[str, logging.Logger] = {}
+
+
+def create_logger(name: str = 'app', level: int = logging.INFO) -> logging.Logger:
+    if name in __LOGGERS:
+        return __LOGGERS[name]
+
+    logger: logging.Logger = logging.getLogger(name)
+    logger.setLevel(level)
+
+    # noinspection SpellCheckingInspection
+    logger_format = '[%(levelname)s] %(asctime)s | %(message)s' if name == 'app' \
+        else '[%(levelname)s:%(name)s] %(asctime)s | %(message)s'
+    formatter: logging.Formatter = logging.Formatter(
+        fmt=logger_format,
+        datefmt='%Y-%m-%d %H:%M:%S'
+    )
+
+    handler: logging.StreamHandler = logging.StreamHandler(stream=sys.stdout)
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
+
+    __LOGGERS[name] = logger
+    return logger
 
 
 def get_address_mail(address: Address, charset='utf-8') -> str | None:
@@ -59,7 +87,7 @@ def get_address_name(address: Address, charset='utf-8') -> str | None:
     :return: mail name or None, if invalid
     """
 
-    if address.name:
+    if not address.name:
         return None
 
     return address.name.decode(charset).strip()

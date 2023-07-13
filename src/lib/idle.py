@@ -14,13 +14,13 @@
 # limitations under the License.
 #
 
-import traceback
 from threading import Thread
 from time import time, sleep
 
 from imapclient import IMAPClient
 from imapclient.response_types import Envelope
 
+from . import create_logger
 from .callback import CallbackHandler
 from .connector import ImapConnector
 
@@ -66,6 +66,7 @@ class ImapIdleHandler:
         self.__folder = folder.strip()
         self.__connector = connector
         self.__callback = callback
+        self.__logger = create_logger(self.__name)
 
         # Prepare thread.
         self.__thread = Thread(target=self.__idle)
@@ -105,7 +106,7 @@ class ImapIdleHandler:
 
         while True:
             if self.__thread_stopped:
-                print('[%s] Thread stopped.' % self.__name)
+                self.__logger.info('Thread stopped.')
                 break
 
             try:
@@ -114,20 +115,13 @@ class ImapIdleHandler:
                     select_folder_readonly=True
                 )
             except Exception as ex:
-                print('[%s] ERROR: %s\n%s' % (
-                    self.__name,
-                    str(ex),
-                    '\n'.join(traceback.format_exception(ex)),
-                ))
+                self.__logger.exception('Connection failed. %s', str(ex))
 
                 # noinspection DuplicatedCode
                 if self.MAX_IMAP_ERROR_COUNT > 0:
                     self.__imap_error_count += 1
                     if self.__imap_error_count > self.MAX_IMAP_ERROR_COUNT:
-                        print('[%s] Leaving the thread after %s errors.' % (
-                            self.__name,
-                            self.__imap_error_count,
-                        ))
+                        self.__logger.warning('Leaving the thread after %s errors.', self.__imap_error_count)
                         return
 
                 if self.SECONDS_TO_WAIT_AFTER_ERROR > 0:
@@ -139,20 +133,13 @@ class ImapIdleHandler:
             try:
                 self.__idle_client(client)
             except Exception as ex:
-                print('[%s] ERROR: %s\n%s' % (
-                    self.__name,
-                    str(ex),
-                    '\n'.join(traceback.format_exception(ex)),
-                ))
+                self.__logger.exception('IDLE failed. %s', str(ex))
 
                 # noinspection DuplicatedCode
                 if self.MAX_IMAP_ERROR_COUNT > 0:
                     self.__imap_error_count += 1
                     if self.__imap_error_count > self.MAX_IMAP_ERROR_COUNT:
-                        print('[%s] Leaving the thread after %s errors.' % (
-                            self.__name,
-                            self.__imap_error_count,
-                        ))
+                        self.__logger.warning('Leaving the thread after %s errors.', self.__imap_error_count)
                         return
 
                 if self.SECONDS_TO_WAIT_AFTER_ERROR > 0:
@@ -184,14 +171,14 @@ class ImapIdleHandler:
 
         # Start IDLE mode
         try:
-            print('[%s] Enter IDLE mode.' % self.__name)
+            self.__logger.info('Enter IDLE mode.')
             self.__connected_at = int(time())
             client.idle()
         except Exception as ex:
-            raise Exception('IDLE mode failed.' % self.__name) from ex
+            raise Exception('IDLE mode failed.') from ex
 
         try:
-            print('[%s] Connection is now in IDLE mode.' % self.__name)
+            # self.__logger.info('Connection is now in IDLE mode.')
             while True:
                 if self.__thread_stopped:
                     break
@@ -200,14 +187,14 @@ class ImapIdleHandler:
                 if self.SECONDS_TO_RECONNECT_AFTER > 0:
                     age = int(time()) - self.__connected_at
                     if age > self.SECONDS_TO_RECONNECT_AFTER:
-                        print('[%s] Enforce reconnection.' % self.__name)
+                        self.__logger.info('Enforce reconnection.')
                         break
 
                 try:
                     self.__idle_loop(client)
                     self.__imap_error_count = 0
                 except KeyboardInterrupt:
-                    print('[%s] Stopped by keyboard interruption.' % self.__name)
+                    self.__logger.info('Stopped by keyboard interruption.')
                     self.__thread_stopped = True
                     break
                 except Exception as ex:
@@ -215,8 +202,8 @@ class ImapIdleHandler:
         finally:
             # noinspection PyBroadException
             try:
+                self.__logger.info('Leaving IDLE mode.')
                 client.idle_done()
-                print('[%s] Leave IDLE mode.' % self.__name)
             except Exception:
                 pass
 
@@ -231,32 +218,21 @@ class ImapIdleHandler:
         if not responses:
             return
 
-        print('[%s] Received: %s' % (
-            self.__name,
-            responses,
-        ))
+        self.__logger.info('Received: %s', str(responses))
         message_nr = self.__get_new_message_number(responses)
         if not message_nr:
-            # print('[%s] Ignore message.' % self.__name)
+            # self.__logger.info('Ignore message.')
             return
 
-        print('[%s] Fetch envelope for message nr %s.' % (
-            self.__name,
-            message_nr,
-        ))
+        self.__logger.info('Fetching envelope for message nr %s.', message_nr)
         envelope = self.__get_message_envelope(message_nr)
         if not envelope:
             return
 
-        # noinspection PyBroadException
         try:
             self.__callback.trigger_new_message_command(envelope=envelope)
         except Exception as ex:
-            print('[%s] ERROR: Callback error! %s\n%s' % (
-                self.__name,
-                str(ex),
-                '\n'.join(traceback.format_exception(ex)),
-            ))
+            self.__logger.exception('Callback failed. %s', str(ex))
 
     @staticmethod
     def __get_new_message_number(responses) -> int | None:
@@ -315,27 +291,18 @@ class ImapIdleHandler:
 
             result = client.fetch([message_number], ['ENVELOPE'])
             if message_number not in result:
-                print('[%s] No data found for message nr %s.' % (
-                    self.__name,
-                    message_number,
-                ))
+                self.__logger.warning('No data found for message nr %s.', message_number)
                 return None
 
             message_result = result[message_number]
             if b'ENVELOPE' not in message_result:
-                print('[%s] No envelope data found for message nr %s.' % (
-                    self.__name,
-                    message_number,
-                ))
+                self.__logger.warning('No envelope data found for message nr %s.', message_number)
                 return None
 
             return message_result[b'ENVELOPE']
 
         except Exception as ex:
-            print('[%s] ERROR: Separate IMAP connection failed! %s\n%s' % (
-                self.__name, str(ex),
-                '\n'.join(traceback.format_exception(ex)),
-            ))
+            self.__logger.exception('Separate IMAP connection failed. %s', str(ex))
             return None
 
         finally:

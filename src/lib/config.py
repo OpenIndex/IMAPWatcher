@@ -14,6 +14,7 @@
 # limitations under the License.
 #
 
+import logging
 import os
 import sys
 from configparser import ConfigParser
@@ -24,14 +25,14 @@ from .connector import ImapConnector
 from .idle import ImapIdleHandler
 
 
-def get_config() -> ConfigParser | None:
+def get_config(logger: logging.Logger) -> ConfigParser | None:
     if len(sys.argv) < 2:
-        print('ERROR: Please provide a config file as first argument!')
+        logger.error('Please provide a config file as first argument!')
         return None
 
     config_path = sys.argv[1]
     if not os.path.isfile(config_path):
-        print('ERROR: Can\'t find config file at "%s"!' % config_path)
+        logger.error('Can\'t find config file at "%s"!' % config_path)
         return None
 
     config = ConfigParser()
@@ -74,15 +75,20 @@ def create_imap_connector(
         section: str,
         use_uid=False
 ) -> ImapConnector:
+    try:
+        port: int = int(config.get(
+            section, 'port',
+            fallback='143',
+        ).strip())
+    except ValueError:
+        raise Exception('Can\'t read port number "%s".' % config.get(section, 'port'))
+
     return ImapConnector(
         host=config.get(
             section, 'host',
             fallback='localhost',
         ),
-        port=int(config.get(
-            section, 'port',
-            fallback='143',
-        ).strip()),
+        port=port,
         username=config.get(
             section, 'username',
             fallback=None,

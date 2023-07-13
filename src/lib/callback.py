@@ -15,7 +15,6 @@
 #
 
 import subprocess
-import traceback
 from datetime import datetime
 from os import getcwd
 from threading import Thread
@@ -30,7 +29,8 @@ from . import get_envelope_message_id, \
     get_envelope_sender_first, \
     get_envelope_to_first, \
     get_address_name, \
-    get_address_mail
+    get_address_mail, \
+    create_logger
 
 
 class CallbackHandler:
@@ -115,6 +115,14 @@ class CallbackThread:
         self.__command = command
         self.__environment = {**environment}
         self.__thread = Thread(target=self.__run)
+        self.__logger = create_logger(self.__name)
+
+        # make sure, that environment dict does not contain None values
+        # as it might lead to errors on execution
+        for key, value in self.__environment.items():
+            if value is None:
+                self.__logger.warning('Environment variable "%s" has None value.', key)
+                self.__environment[key] = ''
 
     def start(self):
         """
@@ -136,31 +144,22 @@ class CallbackThread:
         """
 
         try:
-            print('[%s] Running "%s" from working directory "%s"...' % (
-                self.__name,
-                self.__command,
-                getcwd(),
-            ))
+            self.__logger.info('Running "%s" from working directory "%s"...', self.__command, getcwd())
 
             result: subprocess.CompletedProcess = subprocess.run(
                 self.__command,
                 shell=True,
                 env=self.__environment,
-                cwd=getcwd(),
-                text=True
+                cwd=getcwd()
             )
 
             if result.returncode != 0:
-                print('[%s] ERROR: Callback script "%s" returned non-zero exit code (%s)!' % (
-                    self.__name,
+                self.__logger.warning(
+                    'Callback script "%s" returned non-zero exit code (%s)!',
                     self.__command,
-                    result.returncode,
-                ))
+                    result.returncode
+                )
                 return
 
         except Exception as ex:
-            print('[%s] ERROR: Callback script error! %s\n%s' % (
-                self.__name,
-                str(ex),
-                '\n'.join(traceback.format_exception(ex)),
-            ))
+            self.__logger.exception('Unexpected callback error. %s', str(ex))

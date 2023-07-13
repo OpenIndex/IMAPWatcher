@@ -14,6 +14,7 @@
 # limitations under the License.
 #
 
+from lib import create_logger
 from lib.callback import CallbackHandler
 from lib.config import get_config, \
     create_imap_connector, \
@@ -23,13 +24,15 @@ from lib.connector import ImapConnector
 from lib.idle import ImapIdleHandler
 
 if __name__ == '__main__':
-    config = get_config()
+    root_logger = create_logger()
+
+    config = get_config(logger=root_logger)
     if not config:
         exit(1)
 
     sections = config.sections()
     if not sections:
-        print('No IMAP servers configured. Nothing to do.')
+        root_logger.warning('No IMAP servers configured. Nothing to do.')
         exit(0)
 
     for section in sections:
