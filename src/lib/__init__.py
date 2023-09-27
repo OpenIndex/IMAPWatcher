@@ -17,6 +17,7 @@
 import logging
 import sys
 from datetime import datetime
+from email.header import decode_header
 from enum import Enum
 
 from imapclient.response_types import Address, Envelope
@@ -73,8 +74,8 @@ def get_address_mail(address: Address, charset='utf-8') -> str | None:
         return None
 
     return '%s@%s' % (
-        address.mailbox.decode(charset).strip(),
-        address.host.decode(charset).strip()
+        decode_rfc2047(address.mailbox.decode(charset).strip()),
+        decode_rfc2047(address.host.decode(charset).strip())
     )
 
 
@@ -90,7 +91,7 @@ def get_address_name(address: Address, charset='utf-8') -> str | None:
     if not address.name:
         return None
 
-    return address.name.decode(charset).strip()
+    return decode_rfc2047(address.name.decode(charset).strip())
 
 
 def get_envelope_date(envelope: Envelope) -> datetime | None:
@@ -115,7 +116,7 @@ def get_envelope_subject(envelope: Envelope, charset='utf-8') -> str | None:
     """
 
     values: bytes | None = envelope.subject
-    return values.decode(charset) if values else None
+    return decode_rfc2047(values.decode(charset)) if values else None
 
 
 def get_envelope_message_id(envelope: Envelope, charset='utf-8') -> str | None:
@@ -128,7 +129,7 @@ def get_envelope_message_id(envelope: Envelope, charset='utf-8') -> str | None:
     """
 
     values: bytes | None = envelope.message_id
-    return values.decode(charset) if values else None
+    return decode_rfc2047(values.decode(charset)) if values else None
 
 
 def get_envelope_in_reply_to(envelope: Envelope, charset='utf-8') -> str | None:
@@ -141,7 +142,7 @@ def get_envelope_in_reply_to(envelope: Envelope, charset='utf-8') -> str | None:
     """
 
     values: bytes | None = envelope.in_reply_to
-    return values.decode(charset) if values else None
+    return decode_rfc2047(values.decode(charset)) if values else None
 
 
 def get_envelope_from(envelope: Envelope) -> tuple[Address]:
@@ -286,3 +287,35 @@ def get_envelope_bcc_first(envelope: Envelope) -> Address | None:
 
     values: tuple[Address] = get_envelope_bcc(envelope)
     return values[0] if values and len(values) > 0 else None
+
+
+def decode_rfc2047(header_value: str) -> str:
+    """
+    Returns the value of the RFC 2047 decoded header, or the header_value as-is if it's not encoded.
+    """
+    result = []
+    for binary_value, charset in decode_header(header_value):
+        decoded_value = None
+        if isinstance(binary_value, str):
+            result.append(binary_value)
+            continue
+
+        if charset is not None:
+            try:
+                decoded_value = binary_value.decode(charset, errors='ignore')
+            except Exception as e:
+                root_logger.warning(f"unable to decode for charset {charset}: {e}")
+
+        if decoded_value is None:
+            try:
+                decoded_value = binary_value.decode('utf8', errors='ignore')
+            except Exception as e:
+                root_logger.warning(f"unable to decode email header at all (defaulting to hex rep): {e}")
+                decoded_value = 'HEX({})'.format(binary_value.hex())
+
+        result.append(decoded_value)
+
+    return ''.join(result)
+
+
+root_logger = create_logger()

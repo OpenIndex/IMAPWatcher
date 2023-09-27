@@ -14,7 +14,7 @@
 # limitations under the License.
 #
 
-from lib import create_logger
+from lib import root_logger
 from lib.callback import CallbackHandler
 from lib.config import get_config, \
     create_imap_connector, \
@@ -24,8 +24,6 @@ from lib.connector import ImapConnector
 from lib.idle import ImapIdleHandler
 
 if __name__ == '__main__':
-    root_logger = create_logger()
-
     config = get_config(logger=root_logger)
     if not config:
         exit(1)
