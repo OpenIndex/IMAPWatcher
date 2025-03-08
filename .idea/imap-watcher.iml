@@ -6,7 +6,7 @@
       <excludeFolder url="file://$MODULE_DIR$/callback" />
       <excludeFolder url="file://$MODULE_DIR$/env" />
     </content>
-    <orderEntry type="inheritedJdk" />
+    <orderEntry type="jdk" jdkName="Python 3.13 (IMAPWatcher)" jdkType="Python SDK" />
     <orderEntry type="sourceFolder" forTests="false" />
   </component>
 </module>
