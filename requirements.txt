@@ -1,7 +1,7 @@
 # IMAPClient
 # Easy-to-use, Pythonic and complete IMAP client library
 # https://pypi.org/project/IMAPClient/
-imapclient==2.3.1
+imapclient==3.0.1
 
 # pip-check
 # displays installed pip packages and their update status
