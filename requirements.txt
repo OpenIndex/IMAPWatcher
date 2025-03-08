@@ -11,4 +11,4 @@ pip-check==2.8.1
 # pipdeptree
 # command line utility to show dependency tree of packages
 # https://pypi.org/project/pipdeptree/
-pipdeptree==2.9.5
+pipdeptree==2.25.0
