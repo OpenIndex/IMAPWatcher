@@ -61,11 +61,13 @@ class ImapIdleHandler:
             connector: ImapConnector,
             callback: CallbackHandler,
             folder: str = 'INBOX',
+            ignoreRecentFlag: bool = False,
     ):
         self.__name = name.strip()
         self.__folder = folder.strip()
         self.__connector = connector
         self.__callback = callback
+        self.__ignoreRecentFlag = ignoreRecentFlag
         self.__logger = create_logger(self.__name)
 
         # Prepare thread.
@@ -219,7 +221,7 @@ class ImapIdleHandler:
             return
 
         self.__logger.info('Received: %s', str(responses))
-        message_nr = self.__get_new_message_number(responses)
+        message_nr = self.__get_new_message_number(responses, self.__ignoreRecentFlag)
         if not message_nr:
             # self.__logger.info('Ignore message.')
             return
@@ -235,7 +237,7 @@ class ImapIdleHandler:
             self.__logger.exception('Callback failed. %s', str(ex))
 
     @staticmethod
-    def __get_new_message_number(responses) -> int | None:
+    def __get_new_message_number(responses, ignoreRecentFlag) -> int | None:
         """
         Extracts the message number fron an IDLE server response.
 
@@ -248,28 +250,50 @@ class ImapIdleHandler:
         :return: extracted message number or None, if nothing usable found
         """
 
-        if not (type(responses) is list):
-            return None
-        if len(responses) < 2:
-            return None
 
-        response1 = responses[0]
-        if not (type(response1) is tuple):
-            return None
-        if len(response1) < 2:
-            return None
+        if ignoreRecentFlag == False:
+            if not (type(responses) is list):
+                return None
+            if len(responses) < 2:
+                return None
 
-        response2 = responses[1]
-        if not (type(response2) is tuple):
-            return None
-        if len(response2) < 2:
-            return None
+            response1 = responses[0]
+            if not (type(response1) is tuple):
+                return None
+            if len(response1) < 2:
+                return None
 
-        if response1[1] == b'EXISTS' and response2[1] == b'RECENT':
-            return response1[0]
+            response2 = responses[1]
+            if not (type(response2) is tuple):
+                return None
+            if len(response2) < 2:
+                return None
 
-        if response2[1] == b'EXISTS' and response1[1] == b'RECENT':
-            return response2[0]
+            if response1[1] == b'EXISTS' and response2[1] == b'RECENT':
+                return response1[0]
+
+            if response2[1] == b'EXISTS' and response1[1] == b'RECENT':
+                return response2[0]
+        else:
+
+            """
+            Trigger the script for new messages that look like
+            [(275, b'EXISTS'))]
+            """
+
+            if not (type(responses) is list):
+                return None
+            if len(responses) < 1:
+                return None
+
+            response1 = responses[0]
+            if not (type(response1) is tuple):
+                return None
+            if len(response1) < 2:
+                return None
+
+            if response1[1] == b'EXISTS':
+                return response1[0]
 
         return None
 

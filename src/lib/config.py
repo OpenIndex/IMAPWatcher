@@ -128,4 +128,5 @@ def create_imap_idle_handler(
         connector=connector,
         callback=callback,
         folder=get_imap_folder(config=config, section=section),
+        ignoreRecentFlag=config.get(section, 'ignore_recent_flag', fallback='0').strip().lower() in ('1', 'true'),
     )
